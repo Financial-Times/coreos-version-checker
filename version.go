@@ -29,7 +29,7 @@ func (v versionChecker) Checks() []fthealth.Check {
 * If any security fix has a CVSS score higher than 7, then this is a Critical Update.
 * Any updates which aren't critical can be acknowledged out-of-hours and an email sent to the Universal Publishing team.
 * Critical Updates should be escalated to Technical Operations.
-* Technical Operations should attempt to upgrade CoreOS in the pre-prod environment.
+* Technical Operations should attempt to upgrade CoreOS in the pre-prod environment.  See https://github.com/Financial-Times/coreos-upgrade/wiki for instructions.
 * If the pre-prod upgrade is successful, the same should be applied to production.
 * If either upgrade fails, Tech Ops should escalate to 3rd line support.`,
 		Severity:         1,
