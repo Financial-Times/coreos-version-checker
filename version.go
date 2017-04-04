@@ -33,7 +33,7 @@ func (v versionChecker) Checks() []fthealth.Check {
 * If the pre-prod upgrade is successful, the same should be applied to production.
 * If either upgrade fails, Tech Ops should escalate to 3rd line support.`,
 		Severity:         1,
-		TechnicalSummary: "The version of CoreOS doesn't match the latest available version from the offical repository.",
+		TechnicalSummary: "The version of CoreOS doesn't match the latest available version from the official repository.",
 		Checker:          v.Check,
 	}
 	return []fthealth.Check{check}
