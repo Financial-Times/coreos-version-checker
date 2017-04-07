@@ -1,16 +1,22 @@
 package main
 
 import (
+	"log"
+	"net/http"
+	"time"
+
 	fthealth "github.com/Financial-Times/go-fthealth/v1a"
 	"github.com/gorilla/mux"
 	"github.com/jawher/mow.cli"
-	"log"
-	"net/http"
 )
 
 var (
 	checks   []fthealth.Check
 	hostPath *string
+)
+
+const (
+	versionUri string = "http://%s.release.core-os.net/amd64-usr/current/version.txt"
 )
 
 func main() {
@@ -22,6 +28,9 @@ func main() {
 		Desc:   "The dir path of the mounted host fs (in the container)",
 		EnvVar: "SYS_HC_HOST_PATH",
 	})
+
+	client := &http.Client{Timeout: 1500 * time.Millisecond}
+	newReleaseRepository(client)
 
 	checks = append(checks, versionChecker{}.Checks()...)
 
