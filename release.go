@@ -3,10 +3,14 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"math"
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
+	"sync"
+	"time"
 )
 
 var cveRegex = regexp.MustCompile(`CVE\-[0-9]{4}\-[0-9]{4,}`)
@@ -23,18 +27,105 @@ type cve struct {
 }
 
 type coreOSRelease struct {
-	SecurityFixes []cve    `json:"securityFixes,omitempty"`
-	Version       string   `json:"version"`
-	MaxCVSS       *float64 `json:"maxCvss,omitempty"`
-	ReleaseNotes  string   `json:"releaseNotes"`
+	SecurityFixes []cve      `json:"securityFixes,omitempty"`
+	Version       string     `json:"version"`
+	ReleaseNotes  string     `json:"releaseNotes"`
+	MaxCVSS       *float64   `json:"maxCvss,omitempty"`
+	ReleasedOn    *time.Time `json:"releasedOn,omitempty"`
 }
 
 type releaseRepository struct {
-	client *http.Client
+	sync.RWMutex
+	client           *http.Client
+	channel          string
+	installedVersion coreOSRelease
+	latestVersion    coreOSRelease
+	err              error
 }
 
 func newReleaseRepository(client *http.Client) *releaseRepository {
-	return &releaseRepository{client}
+	return &releaseRepository{client: client}
+}
+
+func (r *releaseRepository) UpdateError(err error) {
+	r.Lock()
+	defer r.Unlock()
+	r.err = err
+}
+
+func (r *releaseRepository) GetChannel() error {
+	channel, err := valueFromFile("GROUP=", *coreOSUpdateConfPath)
+	if err != nil {
+		return err
+	}
+
+	r.Lock()
+	defer r.Unlock()
+
+	r.channel = channel
+	return nil
+}
+
+func (r *releaseRepository) GetInstalledVersion() error {
+	release, err := valueFromFile("COREOS_RELEASE_VERSION=", *coreOSReleaseConfPath)
+	if err != nil {
+		return err
+	}
+
+	enrichedRelease, err := r.Get(release)
+	if err != nil {
+		return err
+	}
+
+	r.Lock()
+	defer r.Unlock()
+
+	r.installedVersion = *enrichedRelease
+	return nil
+}
+
+func (r *releaseRepository) GetLatestVersion() error {
+	uri := fmt.Sprintf(versionUri, r.channel)
+	resp, err := http.Get(uri)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("Got %v requesting %v", resp.StatusCode, uri)
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	release, err := parseCoreOSVersion(string(body))
+	if err != nil {
+		return err
+	}
+
+	coreOS, err := r.Get(release)
+	if err != nil {
+		return err
+	}
+
+	r.Lock()
+	defer r.Unlock()
+
+	r.latestVersion = *coreOS
+	return nil
+}
+
+func parseCoreOSVersion(body string) (string, error) {
+	lines := strings.Split(body, "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "COREOS_VERSION=") {
+			return strings.TrimPrefix(line, "COREOS_VERSION="), nil
+		}
+	}
+
+	return "", errors.New("No CoreOS version on the page")
 }
 
 func (r *releaseRepository) Get(release string) (*coreOSRelease, error) {
@@ -45,6 +136,15 @@ func (r *releaseRepository) Get(release string) (*coreOSRelease, error) {
 
 	releaseData := releases[release].(map[string]interface{})
 	releaseNotes := releaseData["release_notes"].(string)
+	releasedOnText, ok := releaseData["release_date"]
+
+	var releasedOn *time.Time
+	if ok {
+		parsed, err := time.Parse("2006-01-02 15:04:05 -0700", releasedOnText.(string))
+		if err == nil {
+			releasedOn = &parsed
+		}
+	}
 
 	cveIDs := parseReleaseNotes(releaseNotes)
 	var securityFixes []cve
@@ -57,10 +157,10 @@ func (r *releaseRepository) Get(release string) (*coreOSRelease, error) {
 	}
 
 	if maxCVSS == -1 {
-		return &coreOSRelease{ReleaseNotes: releaseNotes, SecurityFixes: securityFixes, Version: release}, nil
+		return &coreOSRelease{ReleasedOn: releasedOn, ReleaseNotes: releaseNotes, SecurityFixes: securityFixes, Version: release}, nil
 	}
 
-	return &coreOSRelease{ReleaseNotes: releaseNotes, SecurityFixes: securityFixes, MaxCVSS: &maxCVSS, Version: release}, nil
+	return &coreOSRelease{ReleasedOn: releasedOn, ReleaseNotes: releaseNotes, SecurityFixes: securityFixes, MaxCVSS: &maxCVSS, Version: release}, nil
 }
 
 func parseReleaseNotes(notes string) []string {
