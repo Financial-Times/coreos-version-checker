@@ -1,6 +1,6 @@
 FROM alpine:3.5
 ADD . /
-RUN apk --update add go git libc-dev \
+RUN apk --update add go git libc-dev ca-certificates \
   && ORG_PATH="github.com/Financial-Times" \
   && REPO_PATH="${ORG_PATH}/coreos-version-checker" \
   && export GOPATH=/gopath \
