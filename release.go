@@ -156,10 +156,6 @@ func (r *releaseRepository) Get(release string) (*coreOSRelease, error) {
 		maxCVSS = math.Max(maxCVSS, fix.CVSS)
 	}
 
-	if maxCVSS == -1 {
-		return &coreOSRelease{ReleasedOn: releasedOn, ReleaseNotes: releaseNotes, SecurityFixes: securityFixes, Version: release}, nil
-	}
-
 	return &coreOSRelease{ReleasedOn: releasedOn, ReleaseNotes: releaseNotes, SecurityFixes: securityFixes, MaxCVSS: &maxCVSS, Version: release}, nil
 }
 
