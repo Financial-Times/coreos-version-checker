@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"os"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -35,21 +36,25 @@ func main() {
 		EnvVar: "RELEASE_CONF",
 	})
 
-	log.WithField("update-conf", *coreOSUpdateConfPath).WithField("release-conf", *coreOSReleaseConfPath).Info("Started with provided config.")
+	app.Action = func() {
+		log.WithField("update-conf", *coreOSUpdateConfPath).WithField("release-conf", *coreOSReleaseConfPath).Info("Started with provided config.")
 
-	client := &http.Client{Timeout: 1500 * time.Millisecond}
-	repo := newReleaseRepository(client)
+		client := &http.Client{Timeout: 1500 * time.Millisecond}
+		repo := newReleaseRepository(client)
 
-	go startPoll(time.Minute*5, repo)
+		go startPoll(time.Minute*5, repo)
 
-	mux := mux.NewRouter()
-	mux.HandleFunc("/__health", Health(repo)).Methods("GET")
+		mux := mux.NewRouter()
+		mux.HandleFunc("/__health", Health(repo)).Methods("GET")
 
-	log.Printf("Starting http server on 8080\n")
-	err := http.ListenAndServe(":8080", mux)
-	if err != nil {
-		panic(err)
+		log.Printf("Starting http server on 8080\n")
+		err := http.ListenAndServe(":8080", mux)
+		if err != nil {
+			panic(err)
+		}
 	}
+
+	app.Run(os.Args)
 }
 
 func startPoll(interval time.Duration, repo *releaseRepository) {
