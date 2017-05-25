@@ -26,6 +26,10 @@ type cve struct {
 	err  error
 }
 
+type httpClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
 type coreOSRelease struct {
 	SecurityFixes []cve      `json:"securityFixes,omitempty"`
 	Version       string     `json:"version"`
@@ -36,15 +40,21 @@ type coreOSRelease struct {
 
 type releaseRepository struct {
 	sync.RWMutex
-	client           *http.Client
+	client           httpClient
 	channel          string
 	installedVersion coreOSRelease
 	latestVersion    coreOSRelease
 	err              error
+	releaseConfPath  string
+	updateConfPath   string
 }
 
-func newReleaseRepository(client *http.Client) *releaseRepository {
-	return &releaseRepository{client: client}
+func newReleaseRepository(client httpClient, releaseConfPath string, updateConfPath string) *releaseRepository {
+	return &releaseRepository{
+		client:          client,
+		releaseConfPath: releaseConfPath,
+		updateConfPath:  updateConfPath,
+	}
 }
 
 func (r *releaseRepository) UpdateError(err error) {
@@ -54,7 +64,7 @@ func (r *releaseRepository) UpdateError(err error) {
 }
 
 func (r *releaseRepository) GetChannel() error {
-	channel, err := valueFromFile("GROUP=", *coreOSUpdateConfPath)
+	channel, err := valueFromFile("GROUP=", r.updateConfPath)
 	if err != nil {
 		return err
 	}
@@ -67,7 +77,7 @@ func (r *releaseRepository) GetChannel() error {
 }
 
 func (r *releaseRepository) GetInstalledVersion() error {
-	release, err := valueFromFile("COREOS_RELEASE_VERSION=", *coreOSReleaseConfPath)
+	release, err := valueFromFile("COREOS_RELEASE_VERSION=", r.releaseConfPath)
 	if err != nil {
 		return err
 	}
@@ -86,7 +96,11 @@ func (r *releaseRepository) GetInstalledVersion() error {
 
 func (r *releaseRepository) GetLatestVersion() error {
 	uri := fmt.Sprintf(versionUri, r.channel)
-	resp, err := http.Get(uri)
+	req, err := http.NewRequest("GET", uri, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := r.client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -183,12 +197,12 @@ func (r *releaseRepository) retrieveCVE(id string) cve {
 		return cve{err: err, ID: id}
 	}
 
-	cvssRaw, ok := cveResult["cvss"]
+	cvssRaw, ok := cveResult["cvss"].(string)
 	if !ok {
 		return cve{err: errors.New("No CVSS found!"), ID: id}
 	}
 
-	score, err := strconv.ParseFloat(cvssRaw.(string), 64)
+	score, err := strconv.ParseFloat(cvssRaw, 64)
 	if err != nil {
 		return cve{err: err, ID: id}
 	}

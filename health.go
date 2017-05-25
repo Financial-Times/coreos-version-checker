@@ -86,7 +86,7 @@ func checkCriticalSecurityScore(repo *releaseRepository) func() (string, error) 
 		defer repo.RUnlock()
 
 		_, err := compareInstalledWithLatest(repo)()
-		if err != nil && *repo.latestVersion.MaxCVSS > 9 {
+		if err != nil && *repo.latestVersion.MaxCVSS >= 9 {
 			return "", errors.New("The new version has a CRITICAL security fix! CoreOS must be upgraded within TWO DAYS!")
 		}
 
@@ -116,7 +116,7 @@ func checkHighSecurityScore(repo *releaseRepository) func() (string, error) {
 		_, err := compareInstalledWithLatest(repo)()
 		if err != nil &&
 			repo.latestVersion.MaxCVSS != nil &&
-			*repo.latestVersion.MaxCVSS > 7 &&
+			*repo.latestVersion.MaxCVSS >= 7 &&
 			repo.latestVersion.ReleasedOn != nil &&
 			time.Now().After(repo.latestVersion.ReleasedOn.Add(time.Hour*336)) { // 336 hours = 2 weeks
 

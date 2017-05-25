@@ -26,7 +26,7 @@ func valueFromFile(key, path string) (val string, err error) {
 }
 
 // GetJSON performs a GET request using the given client, and parses the response to a map[string]interface{}
-func GetJSON(client *http.Client, uri string) (map[string]interface{}, error) {
+func GetJSON(client httpClient, uri string) (map[string]interface{}, error) {
 	req, err := http.NewRequest("GET", uri, nil)
 	if err != nil {
 		return nil, err

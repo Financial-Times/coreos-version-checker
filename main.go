@@ -40,7 +40,7 @@ func main() {
 		log.WithField("update-conf", *coreOSUpdateConfPath).WithField("release-conf", *coreOSReleaseConfPath).Info("Started with provided config.")
 
 		client := &http.Client{Timeout: 1500 * time.Millisecond}
-		repo := newReleaseRepository(client)
+		repo := newReleaseRepository(client, *coreOSReleaseConfPath, *coreOSUpdateConfPath)
 
 		go startPoll(time.Minute*5, repo)
 
