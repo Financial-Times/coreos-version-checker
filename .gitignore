@@ -3,3 +3,5 @@ coreos-version-checker
 *.iml
 /update.conf
 /release
+
+/vendor/*/
