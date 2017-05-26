@@ -26,5 +26,6 @@ test:
     - mkdir -p $CIRCLE_TEST_REPORTS/golang
     - cd $PROJECT_PATH && govendor test -race -v +local | go-junit-report > $CIRCLE_TEST_REPORTS/golang/junit.xml
     - cd $PROJECT_PATH && ./coverage.sh
+    - docker build .
   post:
     - goveralls -coverprofile=$CIRCLE_ARTIFACTS/coverage.out -service=circle-ci -repotoken=$COVERALLS_TOKEN
