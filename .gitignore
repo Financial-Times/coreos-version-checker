@@ -1,3 +1,7 @@
 coreos-version-checker
 .idea
 *.iml
+/update.conf
+/release
+
+/vendor/*/
