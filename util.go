@@ -37,6 +37,8 @@ func GetJSON(client httpClient, uri string) (map[string]interface{}, error) {
 		return nil, err
 	}
 
+	defer resp.Body.Close()
+
 	dec := json.NewDecoder(resp.Body)
 	data := make(map[string]interface{})
 
