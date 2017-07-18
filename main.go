@@ -37,6 +37,7 @@ func main() {
 	})
 
 	app.Action = func() {
+		log.SetFormatter(&log.JSONFormatter{})
 		log.WithField("update-conf", *coreOSUpdateConfPath).WithField("release-conf", *coreOSReleaseConfPath).Info("Started with provided config.")
 
 		client := &http.Client{Timeout: 1500 * time.Millisecond}
