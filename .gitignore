@@ -1,4 +1,4 @@
-coreos-version-checker
+/coreos-version-checker
 .idea
 *.iml
 /update.conf
