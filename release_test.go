@@ -79,6 +79,15 @@ func TestReleaseRepository(t *testing.T) {
 	assert.NotNil(t, repo.latestVersion)
 }
 
+func TestNoReleaseForVersion(t *testing.T) {
+	repo := newReleaseRepository(&http.Client{}, "/release/conf", "/update/conf")
+	assert.NoError(t, repo.err)
+
+	os, err := repo.Get("1.1.1")
+	assert.EqualError(t, err, "Release not found")
+	assert.Nil(t, os)
+}
+
 func TestReleaseRepository_UpdateError(t *testing.T) {
 	repo := newReleaseRepository(&http.Client{}, "/release/conf", "/update/conf")
 	assert.NoError(t, repo.err)
@@ -88,5 +97,4 @@ func TestReleaseRepository_UpdateError(t *testing.T) {
 	repo.UpdateError(expErr)
 	assert.Error(t, repo.err)
 	assert.Equal(t, expErr, repo.err)
-
 }

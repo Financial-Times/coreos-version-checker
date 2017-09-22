@@ -147,7 +147,11 @@ func (r *releaseRepository) Get(release string) (*coreOSRelease, error) {
 		return nil, err
 	}
 
-	releaseData := releases[release].(map[string]interface{})
+	releaseData, ok := releases[release].(map[string]interface{})
+	if !ok {
+		return nil, errors.New("Release not found")
+	}
+
 	releaseNotes := releaseData["release_notes"].(string)
 	releasedOnText, ok := releaseData["release_date"]
 
