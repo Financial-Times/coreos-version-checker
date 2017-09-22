@@ -7,7 +7,6 @@ import (
 	"math"
 	"net/http"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -197,15 +196,10 @@ func (r *releaseRepository) retrieveCVE(id string) cve {
 		return cve{err: err, ID: id}
 	}
 
-	cvssRaw, ok := cveResult["cvss"].(string)
+	cvss, ok := cveResult["cvss"].(float64)
 	if !ok {
 		return cve{err: errors.New("No CVSS found!"), ID: id}
 	}
 
-	score, err := strconv.ParseFloat(cvssRaw, 64)
-	if err != nil {
-		return cve{err: err, ID: id}
-	}
-
-	return cve{CVSS: score, ID: id, err: nil}
+	return cve{CVSS: cvss, ID: id, err: nil}
 }

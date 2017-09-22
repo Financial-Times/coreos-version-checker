@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	coreosReleaseResponse = `{"securityFixes":[{"id":"CVE-2016-9962","cvss":0}],"version":"1284.2.0","releaseNotes":"Security Fixes:\n\n  - Fix RunC privilege escalation ([CVE-2016-9962](http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2016-9962))\n","maxCvss":0,"releasedOn":"2017-01-11T01:55:33Z"}`
+	coreosReleaseResponse = `{"securityFixes":[{"id":"CVE-2016-9962","cvss":4.4}],"version":"1284.2.0","releaseNotes":"Security Fixes:\n\n  - Fix RunC privilege escalation ([CVE-2016-9962](http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2016-9962))\n","maxCvss":4.4,"releasedOn":"2017-01-11T01:55:33Z"}`
 	releaseConf           = `COREOS_RELEASE_VERSION=1284.2.0
 COREOS_RELEASE_BOARD=amd64-usr
 COREOS_RELEASE_APPID={e96281a6-d1af-4bde-9a0a-97b76e56dc57}`
