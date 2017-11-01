@@ -94,7 +94,7 @@ func (r *releaseRepository) GetInstalledVersion() error {
 }
 
 func (r *releaseRepository) GetLatestVersion() error {
-	uri := fmt.Sprintf(versionUri, r.channel)
+	uri := fmt.Sprintf(versionUri, "stable") // hardcoded stable
 	req, err := http.NewRequest("GET", uri, nil)
 	if err != nil {
 		return err
