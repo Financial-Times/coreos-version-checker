@@ -9,6 +9,14 @@
 			"revisionTime": "2017-12-04T12:48:31Z"
 		},
 		{
+			"checksumSHA1": "dqF1g4reeLPNN10qTXgDJj3fHm4=",
+			"path": "github.com/Financial-Times/http-handlers-go/httphandlers",
+			"revision": "4e0e38de309b3d9b119be1ae17f0f7070309015b",
+			"revisionTime": "2017-07-18T12:56:14Z",
+			"version": "0.1.1-dp-upgrade-logrus-rc.1",
+			"versionExact": "0.1.1-dp-upgrade-logrus-rc.1"
+		},
+		{
 			"checksumSHA1": "DYv6Q1+VfnUVxMwvk5IshAClLvw=",
 			"path": "github.com/Sirupsen/logrus",
 			"revision": "5e5dc898656f695e2a086b8e12559febbfc01562",
