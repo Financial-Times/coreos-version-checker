@@ -3,5 +3,5 @@
 *.iml
 /update.conf
 /release
-
+*exe
 /vendor/*/
