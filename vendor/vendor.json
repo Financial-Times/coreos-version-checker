@@ -29,6 +29,12 @@
 			"revisionTime": "2016-03-23T11:15:42Z"
 		},
 		{
+			"checksumSHA1": "fqpohN7Qp2qj7TLMbUxh/cK4oH0=",
+			"path": "github.com/Financial-Times/service-status-go/buildinfo",
+			"revision": "3f5199736a3d7ae52394c63aac36834786825e21",
+			"revisionTime": "2016-03-23T11:15:42Z"
+		},
+		{
 			"checksumSHA1": "973POGyMCoyaKQuIYX2f7EKFwlQ=",
 			"path": "github.com/Financial-Times/service-status-go/httphandlers",
 			"revision": "3f5199736a3d7ae52394c63aac36834786825e21",
