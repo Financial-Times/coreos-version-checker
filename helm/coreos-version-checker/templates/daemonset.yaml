@@ -1,5 +1,5 @@
 apiVersion: extensions/v1beta1
-kind: Deployment
+kind: DaemonSet
 metadata:
   name: {{ .Values.service.name }} 
   labels:
@@ -8,7 +8,6 @@ metadata:
     visualize: "true" 
     app: {{ .Values.service.name }} 
 spec:
-  replicas: {{ .Values.replicaCount }} 
   selector: 
     matchLabels:
       app: {{ .Values.service.name }}
@@ -18,7 +17,10 @@ spec:
         app: {{ .Values.service.name }}
         visualize: "true" 
     spec:
-      containers: 
+      # ensure that coreos-version-checker will be deployed to all nodes
+      tolerations:
+      - operator: "Exists"
+      containers:
       - name: {{ .Values.service.name }} 
         image: "{{ .Values.image.repository }}:{{ .Chart.Version }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
