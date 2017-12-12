@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"strconv"
 )
 
 var cveRegex = regexp.MustCompile(`CVE\-[0-9]{4}\-[0-9]{4,}`)
@@ -200,9 +201,16 @@ func (r *releaseRepository) retrieveCVE(id string) cve {
 		return cve{err: err, ID: id}
 	}
 
-	cvss, ok := cveResult["cvss"].(float64)
+	cvssString, ok := cveResult["cvss"].(string)
 	if !ok {
 		return cve{err: errors.New("No CVSS found!"), ID: id}
+	}
+	cvss, err := strconv.ParseFloat(cvssString, 64)
+	if err != nil {
+		return cve{
+			err: errors.New(fmt.Sprintf("Cannot parse CVSS %s because %v", cvssString, err.Error())),
+			ID:  id,
+		}
 	}
 
 	return cve{CVSS: cvss, ID: id, err: nil}
