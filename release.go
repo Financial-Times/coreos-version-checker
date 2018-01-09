@@ -71,8 +71,13 @@ func (r *releaseRepository) GetChannel() error {
 
 	r.Lock()
 	defer r.Unlock()
-
-	r.channel = channel
+	// in K8S we use CoreUpdate, which uses a non-standard channel, like "coreUpdateChan1"
+	// if we encounter a non-standard channel, we default the check to "stable"
+	if channel == "beta" || channel == "alpha" {
+		r.channel = channel
+	} else {
+		r.channel = "stable"
+	}
 	return nil
 }
 
@@ -95,7 +100,7 @@ func (r *releaseRepository) GetInstalledVersion() error {
 }
 
 func (r *releaseRepository) GetLatestVersion() error {
-	uri := fmt.Sprintf(versionUri, "stable") // hardcoded stable
+	uri := fmt.Sprintf(versionUri, r.channel)
 	req, err := http.NewRequest("GET", uri, nil)
 	if err != nil {
 		return err
