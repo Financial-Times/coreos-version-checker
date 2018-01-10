@@ -9,5 +9,7 @@ image:
   repository: coco/coreos-version-checker
   pullPolicy: IfNotPresent
 resources:
+  requests:
+    memory: 16Mi
   limits:
-    memory: 256Mi
+    memory: 128Mi
