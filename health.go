@@ -5,56 +5,95 @@ import (
 	"net/http"
 	"time"
 
-	fthealth "github.com/Financial-Times/go-fthealth/v1a"
+	fthealth "github.com/Financial-Times/go-fthealth/v1_1"
+	"github.com/Financial-Times/service-status-go/gtg"
 )
 
-// Health returns a handler for the standard FT healthchecks
-func Health(repo *releaseRepository) func(w http.ResponseWriter, r *http.Request) {
-	return fthealth.Handler("coreos-version-checker", "Checks for new CoreOS upgrades, and reports on the CVE severity score.", getHealthchecks(repo)...)
+type HealthService struct {
+	repo *releaseRepository
 }
 
-func getHealthchecks(repo *releaseRepository) []fthealth.Check {
+func NewHealthService(repo *releaseRepository) *HealthService {
+	return &HealthService{
+		repo: repo,
+	}
+}
+
+func (service *HealthService) HealthCheckHandler() func(w http.ResponseWriter, r *http.Request) {
+	hc := fthealth.TimedHealthCheck{
+		HealthCheck: fthealth.HealthCheck{
+			SystemCode:  "coreos-version-checker",
+			Name:        "CoreOS Version Checker",
+			Description: "Checks for new CoreOS upgrades, and reports on the CVE severity score.",
+			Checks:      service.checks(),
+		},
+		Timeout: 10 * time.Second,
+	}
+	return fthealth.Handler(hc)
+}
+
+func (service *HealthService) checks() []fthealth.Check {
 	return []fthealth.Check{
-		{
-			BusinessImpact:   "No direct business impact, but there could be important bug fixes in the latest release.",
-			Name:             "New CoreOS Version",
-			PanicGuide:       "https://dewey.ft.com/coreos-version-checker.html",
-			Severity:         2,
-			TechnicalSummary: "The version of CoreOS doesn't match the latest available version from the official repository.",
-			Checker:          compareInstalledWithLatest(repo),
-		},
-		{
-			BusinessImpact:   "It may be possible to compromise our publishing stack using a known security vulnerability.",
-			Name:             "New CoreOS Version has Security Fixes",
-			PanicGuide:       "https://dewey.ft.com/coreos-version-checker.html",
-			Severity:         2,
-			TechnicalSummary: "The latest version of CoreOS contains security fixes.",
-			Checker:          checkAnySecurityFixes(repo),
-		},
-		{
-			BusinessImpact:   "It may be possible to compromise our publishing stack using a known critical security vulnerability.",
-			Name:             "Critical Security Fix",
-			PanicGuide:       "https://dewey.ft.com/coreos-version-checker.html",
-			Severity:         1,
-			TechnicalSummary: "The latest version of CoreOS has a CRITICAL security fix.",
-			Checker:          checkCriticalSecurityScore(repo),
-		},
-		{
-			BusinessImpact:   "It may be possible to compromise our publishing stack using a known security vulnerability.",
-			Name:             "High Risk Security Fix Overdue",
-			PanicGuide:       "https://dewey.ft.com/coreos-version-checker.html",
-			Severity:         1,
-			TechnicalSummary: "The latest version of CoreOS has a HIGH RISK security fix. The FT policy is to upgrade to this version within TWO WEEKS, a deadline which has now been passed!",
-			Checker:          checkHighSecurityScore(repo),
-		},
-		{
-			BusinessImpact:   "No business impact.",
-			Name:             "Error while checking CoreOS Release Versions",
-			PanicGuide:       "https://dewey.ft.com/coreos-version-checker.html",
-			Severity:         2,
-			TechnicalSummary: "We were unable to retrieve data from CoreOS Release or the CVE Information APIs.",
-			Checker:          errorRetrievingReleaseInfo(repo),
-		},
+		service.releaseInfoRetrievalCheck(),
+		service.securityFixesCheck(),
+		service.highSecurityFixesCheck(),
+		service.criticalSecurityFixesCheck(),
+		service.latestVersionCheck(),
+	}
+}
+
+func (service *HealthService) releaseInfoRetrievalCheck() fthealth.Check {
+	return fthealth.Check{
+		BusinessImpact:   "No business impact.",
+		Name:             "Error while checking CoreOS Release Versions",
+		PanicGuide:       "https://dewey.ft.com/coreos-version-checker.html",
+		Severity:         2,
+		TechnicalSummary: "We were unable to retrieve data from CoreOS Release or the CVE Information APIs.",
+		Checker:          errorRetrievingReleaseInfo(service.repo),
+	}
+}
+
+func (service *HealthService) highSecurityFixesCheck() fthealth.Check {
+	return fthealth.Check{
+		BusinessImpact:   "It may be possible to compromise our publishing stack using a known security vulnerability.",
+		Name:             "High Risk Security Fix Overdue",
+		PanicGuide:       "https://dewey.ft.com/coreos-version-checker.html",
+		Severity:         1,
+		TechnicalSummary: "The latest version of CoreOS has a HIGH RISK security fix. The FT policy is to upgrade to this version within TWO WEEKS, a deadline which has now been passed!",
+		Checker:          checkHighSecurityScore(service.repo),
+	}
+}
+
+func (service *HealthService) criticalSecurityFixesCheck() fthealth.Check {
+	return fthealth.Check{
+		BusinessImpact:   "It may be possible to compromise our publishing stack using a known critical security vulnerability.",
+		Name:             "Critical Security Fix",
+		PanicGuide:       "https://dewey.ft.com/coreos-version-checker.html",
+		Severity:         1,
+		TechnicalSummary: "The latest version of CoreOS has a CRITICAL security fix.",
+		Checker:          checkCriticalSecurityScore(service.repo),
+	}
+}
+
+func (service *HealthService) securityFixesCheck() fthealth.Check {
+	return fthealth.Check{
+		BusinessImpact:   "It may be possible to compromise our publishing stack using a known security vulnerability.",
+		Name:             "New CoreOS Version has Security Fixes",
+		PanicGuide:       "https://dewey.ft.com/coreos-version-checker.html",
+		Severity:         2,
+		TechnicalSummary: "The latest version of CoreOS contains security fixes.",
+		Checker:          checkAnySecurityFixes(service.repo),
+	}
+}
+
+func (service *HealthService) latestVersionCheck() fthealth.Check {
+	return fthealth.Check{
+		BusinessImpact:   "No direct business impact, but there could be important bug fixes in the latest release.",
+		Name:             "New CoreOS Version",
+		PanicGuide:       "https://dewey.ft.com/coreos-version-checker.html",
+		Severity:         2,
+		TechnicalSummary: "The version of CoreOS doesn't match the latest available version from the official repository.",
+		Checker:          compareInstalledWithLatest(service.repo),
 	}
 }
 
@@ -125,4 +164,22 @@ func checkHighSecurityScore(repo *releaseRepository) func() (string, error) {
 
 		return "", nil
 	}
+}
+
+func (service *HealthService) GTG() gtg.Status {
+	var statusChecker []gtg.StatusChecker
+	for _, c := range service.checks() {
+		checkFunc := func() gtg.Status {
+			return gtgCheck(c.Checker)
+		}
+		statusChecker = append(statusChecker, checkFunc)
+	}
+	return gtg.FailFastParallelCheck(statusChecker)()
+}
+
+func gtgCheck(handler func() (string, error)) gtg.Status {
+	if _, err := handler(); err != nil {
+		return gtg.Status{GoodToGo: false, Message: err.Error()}
+	}
+	return gtg.Status{GoodToGo: true}
 }

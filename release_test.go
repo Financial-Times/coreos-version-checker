@@ -17,8 +17,6 @@ var (
 	releaseConf           = `COREOS_RELEASE_VERSION=1284.2.0
 COREOS_RELEASE_BOARD=amd64-usr
 COREOS_RELEASE_APPID={e96281a6-d1af-4bde-9a0a-97b76e56dc57}`
-	updateConf = `GROUP=stable
-REBOOT_STRATEGY=off`
 )
 
 type mockClient struct {
@@ -53,30 +51,54 @@ REBOOT_STRATEGY=off`
 }
 
 func TestReleaseRepository(t *testing.T) {
-	updateFile, _ := ioutil.TempFile("", "update")
-	updateFile.Write([]byte(updateConf))
-	updateFile.Close()
+	var testCases = []struct {
+		updateConf      string
+		expectedChannel string
+	}{
+		{
+			updateConf:      "GROUP=stable\nREBOOT_STRATEGY=off",
+			expectedChannel: "stable",
+		},
+		{
+			updateConf:      "GROUP=beta\nREBOOT_STRATEGY=off",
+			expectedChannel: "beta",
+		},
+		{
+			updateConf:      "GROUP=alpha\nREBOOT_STRATEGY=off",
+			expectedChannel: "alpha",
+		},
+		{
+			updateConf:      "GROUP=coreUpdateNonStandard1\nREBOOT_STRATEGY=off",
+			expectedChannel: "stable",
+		},
+	}
 
 	releaseFile, _ := ioutil.TempFile("", "release")
 	releaseFile.Write([]byte(releaseConf))
 	releaseFile.Close()
+	defer os.Remove(releaseFile.Name())
+	for _, tc := range testCases {
+		updateFile, _ := ioutil.TempFile("", "update")
+		updateFile.Write([]byte(tc.updateConf))
+		updateFile.Close()
 
-	defer os.Remove(updateFile.Name())
-	repo := newReleaseRepository(&http.Client{}, releaseFile.Name(), updateFile.Name())
+		repo := newReleaseRepository(&http.Client{}, releaseFile.Name(), updateFile.Name())
 
-	err := repo.GetChannel()
-	assert.NoError(t, err)
-	assert.Equal(t, "stable", repo.channel)
+		err := repo.GetChannel()
+		assert.NoError(t, err)
+		assert.Equal(t, tc.expectedChannel, repo.channel)
 
-	err = repo.GetInstalledVersion()
-	d, _ := json.Marshal(repo.installedVersion)
-	assert.NoError(t, err)
-	assert.Equal(t, coreosReleaseResponse, string(d))
+		err = repo.GetInstalledVersion()
+		d, _ := json.Marshal(repo.installedVersion)
+		assert.NoError(t, err)
+		assert.Equal(t, coreosReleaseResponse, string(d))
 
-	err = repo.GetLatestVersion()
-	assert.NoError(t, err)
+		err = repo.GetLatestVersion()
+		assert.NoError(t, err)
 
-	assert.NotNil(t, repo.latestVersion)
+		assert.NotNil(t, repo.latestVersion)
+		os.Remove(updateFile.Name())
+	}
 }
 
 func TestNoReleaseForVersion(t *testing.T) {

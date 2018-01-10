@@ -71,8 +71,13 @@ func (r *releaseRepository) GetChannel() error {
 
 	r.Lock()
 	defer r.Unlock()
-
-	r.channel = channel
+	// in K8S we use CoreUpdate, which uses a non-standard channel, like "coreUpdateChan1"
+	// if we encounter a non-standard channel, we default the channel to "stable"
+	if channel == "beta" || channel == "alpha" {
+		r.channel = channel
+	} else {
+		r.channel = "stable"
+	}
 	return nil
 }
 

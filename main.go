@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	status "github.com/Financial-Times/service-status-go/httphandlers"
 	log "github.com/Sirupsen/logrus"
 	"github.com/gorilla/mux"
 	"github.com/jawher/mow.cli"
@@ -16,7 +17,7 @@ var (
 )
 
 const (
-	versionUri string = "http://%s.release.core-os.net/amd64-usr/current/version.txt"
+	versionUri = "http://%s.release.core-os.net/amd64-usr/current/version.txt"
 )
 
 func main() {
@@ -42,12 +43,12 @@ func main() {
 
 		client := &http.Client{Timeout: 1500 * time.Millisecond}
 		repo := newReleaseRepository(client, *coreOSReleaseConfPath, *coreOSUpdateConfPath)
-
+		healthService := NewHealthService(repo)
 		go startPoll(time.Minute*5, repo)
 
 		mux := mux.NewRouter()
-		mux.HandleFunc("/__health", Health(repo)).Methods("GET")
-
+		mux.HandleFunc("/__health", healthService.HealthCheckHandler()).Methods("GET")
+		mux.HandleFunc(status.GTGPath, status.NewGoodToGoHandler(healthService.GTG))
 		log.Printf("Starting http server on 8080\n")
 		err := http.ListenAndServe(":8080", mux)
 		if err != nil {
