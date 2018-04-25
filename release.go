@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	logrus "github.com/Sirupsen/logrus"
 	"github.com/hashicorp/go-retryablehttp"
 )
 
@@ -50,10 +49,9 @@ type releaseRepository struct {
 }
 
 func newReleaseRepository(client *http.Client, releaseConfPath string, updateConfPath string) *releaseRepository {
-	logWriter := logrus.StandardLogger().Writer()
 	retryableClient := &retryablehttp.Client{
 		HTTPClient:   client,
-		Logger:       log.New(logWriter, "", log.LstdFlags),
+		Logger:       log.New(ioutil.Discard, "", log.LstdFlags),
 		RetryWaitMin: 100 * time.Millisecond,
 		RetryWaitMax: 2 * time.Second,
 		RetryMax:     5,
