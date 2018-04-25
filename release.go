@@ -4,13 +4,17 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
-	"strconv"
+
+	logrus "github.com/Sirupsen/logrus"
+	"github.com/hashicorp/go-retryablehttp"
 )
 
 var cveRegex = regexp.MustCompile(`CVE\-[0-9]{4}\-[0-9]{4,}`)
@@ -26,10 +30,6 @@ type cve struct {
 	err  error
 }
 
-type httpClient interface {
-	Do(req *http.Request) (*http.Response, error)
-}
-
 type coreOSRelease struct {
 	SecurityFixes []cve      `json:"securityFixes,omitempty"`
 	Version       string     `json:"version"`
@@ -40,7 +40,7 @@ type coreOSRelease struct {
 
 type releaseRepository struct {
 	sync.RWMutex
-	client           httpClient
+	client           *retryablehttp.Client
 	channel          string
 	installedVersion coreOSRelease
 	latestVersion    coreOSRelease
@@ -49,9 +49,19 @@ type releaseRepository struct {
 	updateConfPath   string
 }
 
-func newReleaseRepository(client httpClient, releaseConfPath string, updateConfPath string) *releaseRepository {
+func newReleaseRepository(client *http.Client, releaseConfPath string, updateConfPath string) *releaseRepository {
+	logWriter := logrus.StandardLogger().Writer()
+	retryableClient := &retryablehttp.Client{
+		HTTPClient:   client,
+		Logger:       log.New(logWriter, "", log.LstdFlags),
+		RetryWaitMin: 100 * time.Millisecond,
+		RetryWaitMax: 2 * time.Second,
+		RetryMax:     5,
+		CheckRetry:   retryablehttp.DefaultRetryPolicy,
+		Backoff:      retryablehttp.DefaultBackoff,
+	}
 	return &releaseRepository{
-		client:          client,
+		client:          retryableClient,
 		releaseConfPath: releaseConfPath,
 		updateConfPath:  updateConfPath,
 	}
@@ -101,7 +111,7 @@ func (r *releaseRepository) GetInstalledVersion() error {
 
 func (r *releaseRepository) GetLatestVersion() error {
 	uri := fmt.Sprintf(versionUri, r.channel)
-	req, err := http.NewRequest("GET", uri, nil)
+	req, err := retryablehttp.NewRequest("GET", uri, nil)
 	if err != nil {
 		return err
 	}
