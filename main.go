@@ -44,7 +44,7 @@ func main() {
 		client := &http.Client{Timeout: 1500 * time.Millisecond}
 		repo := newReleaseRepository(client, *coreOSReleaseConfPath, *coreOSUpdateConfPath)
 		healthService := NewHealthService(repo)
-		go startPoll(time.Minute*5, repo)
+		go startPoll(time.Minute*30, repo)
 
 		mux := mux.NewRouter()
 		mux.HandleFunc("/__health", healthService.HealthCheckHandler()).Methods("GET")
