@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"io/ioutil"
@@ -10,25 +9,24 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/jarcoal/httpmock.v1"
 )
 
 var (
+	coreosReleaseHTTPResponse = `
+	{"1284.2.0": {
+		"security_fixes": [{"id": "CVE-2016-9962", "cvss": 4.4}],
+		"version": "1284.2.0",
+		"release_notes": "Security Fixes:\n\n  - Fix RunC privilege escalation ([CVE-2016-9962](http:\/\/cve.mitre.org\/cgi-bin\/cvename.cgi?name=CVE-2016-9962))\n",
+		"max_cvss": 4.4,
+		"released_on": "2017-01-11T01:55:33Z"
+	}}
+	`
 	coreosReleaseResponse = `{"securityFixes":[{"id":"CVE-2016-9962","cvss":4.4}],"version":"1284.2.0","releaseNotes":"Security Fixes:\n\n  - Fix RunC privilege escalation ([CVE-2016-9962](http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2016-9962))\n","maxCvss":4.4,"releasedOn":"2017-01-11T01:55:33Z"}`
 	releaseConf           = `COREOS_RELEASE_VERSION=1284.2.0
 COREOS_RELEASE_BOARD=amd64-usr
 COREOS_RELEASE_APPID={e96281a6-d1af-4bde-9a0a-97b76e56dc57}`
 )
-
-type mockClient struct {
-	resp       string
-	err        error
-	statusCode int
-}
-
-func (c *mockClient) Do(req *http.Request) (*http.Response, error) {
-	cb := ioutil.NopCloser(bytes.NewReader([]byte(c.resp)))
-	return &http.Response{Body: cb, StatusCode: c.statusCode}, c.err
-}
 
 func TestCoreOS(t *testing.T) {
 	repo := newReleaseRepository(&http.Client{}, "/release/conf", "/update/conf")
@@ -99,6 +97,77 @@ func TestReleaseRepository(t *testing.T) {
 		assert.NotNil(t, repo.latestVersion)
 		os.Remove(updateFile.Name())
 	}
+}
+
+func TestReleaseRepositoryRetries(t *testing.T) {
+	updateConf := "GROUP=coreUpdateNonStandard1\nREBOOT_STRATEGY=off"
+	expectedChannel := "stable"
+
+	releaseFile, _ := ioutil.TempFile("", "release")
+	releaseFile.Write([]byte(releaseConf))
+	releaseFile.Close()
+	defer os.Remove(releaseFile.Name())
+
+	updateFile, _ := ioutil.TempFile("", "update")
+	updateFile.Write([]byte(updateConf))
+	updateFile.Close()
+	defer os.Remove(updateFile.Name())
+
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder("GET", "https://coreos.com/releases/releases.json",
+		func(req *http.Request) (*http.Response, error) {
+			resp := httpmock.NewStringResponse(200, coreosReleaseHTTPResponse)
+			return resp, nil
+		},
+	)
+
+	httpmock.RegisterResponder("GET", "http://cve.circl.lu/api/cve/CVE-2016-9962",
+		func(req *http.Request) (*http.Response, error) {
+			resp := httpmock.NewStringResponse(200, "{}")
+			return resp, nil
+		},
+	)
+
+	failForAttempts := 10
+	attempt := 0
+
+	httpmock.RegisterResponder("GET", "http://stable.release.core-os.net/amd64-usr/current/version.txt",
+		func(req *http.Request) (*http.Response, error) {
+			attempt++
+			if attempt <= failForAttempts {
+				return nil, errors.New("random error")
+			}
+			body := "COREOS_VERSION=1284.2.0"
+			resp := httpmock.NewStringResponse(200, body)
+			return resp, nil
+		},
+	)
+
+	repo := newReleaseRepository(
+		&http.Client{},
+		releaseFile.Name(),
+		updateFile.Name(),
+	)
+
+	err := repo.GetChannel()
+	assert.NoError(t, err)
+	assert.Equal(t, expectedChannel, repo.channel)
+
+	err = repo.GetInstalledVersion()
+	assert.NoError(t, err)
+
+	err = repo.GetLatestVersion()
+	assert.Contains(t, err.Error(), "giving up")
+
+	failForAttempts = 3
+	attempt = 0
+
+	err = repo.GetLatestVersion()
+	assert.NoError(t, err)
+
+	assert.NotNil(t, repo.latestVersion)
 }
 
 func TestNoReleaseForVersion(t *testing.T) {

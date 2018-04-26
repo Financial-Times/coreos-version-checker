@@ -48,6 +48,18 @@
 			"revisionTime": "2017-07-03T15:07:09Z"
 		},
 		{
+			"checksumSHA1": "YAq1rqZIp+M74Q+jMBQkkMKm3VM=",
+			"path": "github.com/hashicorp/go-cleanhttp",
+			"revision": "d5fe4b57a186c716b0e00b8c301cbd9b4182694d",
+			"revisionTime": "2017-12-18T14:54:08Z"
+		},
+		{
+			"checksumSHA1": "yzoWV7yrS/TvOrKy5ZrdUjsYaOA=",
+			"path": "github.com/hashicorp/go-retryablehttp",
+			"revision": "794af36148bf63c118d6db80eb902a136b907e71",
+			"revisionTime": "2017-08-24T18:08:59Z"
+		},
+		{
 			"checksumSHA1": "tUGxc7rfX0cmhOOUDhMuAZ9rWsA=",
 			"path": "github.com/hashicorp/go-version",
 			"revision": "03c5bf6be031b6dd45afec16b1cf94fc8938bc77",
@@ -89,6 +101,12 @@
 			"path": "golang.org/x/sys/windows",
 			"revision": "43e60d72a8e2bd92ee98319ba9a384a0e9837c08",
 			"revisionTime": "2017-08-16T15:16:36Z"
+		},
+		{
+			"checksumSHA1": "4jT4+49wktdhvFqDjDPURsFK47o=",
+			"path": "gopkg.in/jarcoal/httpmock.v1",
+			"revision": "eb84b840d3d6889d2458ceed28e3c6f0d109f6c8",
+			"revisionTime": "2018-04-24T17:51:38Z"
 		}
 	],
 	"rootPath": "github.com/Financial-Times/coreos-version-checker"

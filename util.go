@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"strings"
+
+	retryablehttp "github.com/hashicorp/go-retryablehttp"
 )
 
 func valueFromFile(key, path string) (val string, err error) {
@@ -26,8 +27,8 @@ func valueFromFile(key, path string) (val string, err error) {
 }
 
 // GetJSON performs a GET request using the given client, and parses the response to a map[string]interface{}
-func GetJSON(client httpClient, uri string) (map[string]interface{}, error) {
-	req, err := http.NewRequest("GET", uri, nil)
+func GetJSON(client *retryablehttp.Client, uri string) (map[string]interface{}, error) {
+	req, err := retryablehttp.NewRequest("GET", uri, nil)
 	if err != nil {
 		return nil, err
 	}
