@@ -1,0 +1,11 @@
+[[constraint]]
+  name = "github.com/Financial-Times/go-fthealth"
+  version = "0.4.0"
+
+[[constraint]]
+  name = "github.com/Financial-Times/service-status-go"
+  version = "0.1.0"
+
+[prune]
+  go-tests = true
+  unused-packages = true
