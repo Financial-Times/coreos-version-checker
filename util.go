@@ -9,7 +9,7 @@ import (
 	retryablehttp "github.com/hashicorp/go-retryablehttp"
 )
 
-func valueFromFile(key, path string) (val string, err error) {
+func getValueFromFile(key, path string) (val string, err error) {
 	content, err := ioutil.ReadFile(path)
 	if err != nil {
 		return "", err
