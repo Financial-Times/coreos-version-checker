@@ -14,14 +14,14 @@ import (
 
 var (
 	coreosReleaseHTTPResponse = `
-	{"2135.5.0": {
-		"version": "2135.5.0",
-		"release_notes": "Bug fixes:\n\n * Fix Ignition panic when no guestinfo.(coreos|ignition).config parameters are specified on VMware (coreos/ignition#821)\n\nUpdates:\n\n * Ignition [0.33.0](https://github.com/coreos/ignition/releases/tag/v0.33.0)\n",
-		"max_cvss":-1,
-		"released_on": "2019-07-02T20:52:42Z"
+	{"2135.4.0": {
+		"version": "2135.4.0",
+		"release_notes": "No changes for stable promotion\n",
+		"max_cvss": -1,
+		"released_on": "2019-06-25T20:35:59Z"
 	}}`
-	coreosReleaseResponse = `{"version":"2135.5.0","release_notes": "Bug fixes:\n\n * Fix Ignition panic when no guestinfo.(coreos|ignition).config parameters are specified on VMware (coreos/ignition#821)\n\nUpdates:\n\n * Ignition [0.33.0](https://github.com/coreos/ignition/releases/tag/v0.33.0)\n","max_cvss": -1,"released_on": "2019-07-02T20:52:42Z"}`
-	releaseConf           = `COREOS_RELEASE_VERSION=2135.5.0
+	coreosReleaseResponse = `{"version":"2135.4.0","releaseNotes":"No changes for stable promotion\n","maxCvss":-1,"releaseDate":"2019-06-25T20:35:59Z"}`
+	releaseConf           = `COREOS_RELEASE_VERSION=2135.4.0
 COREOS_RELEASE_BOARD=amd64-usr
 COREOS_RELEASE_APPID={e96281a6-d1af-4bde-9a0a-97b76e56dc57}`
 )
@@ -31,7 +31,7 @@ func TestCoreOS(t *testing.T) {
 	releases, err := GetJSON(repo.client, releasesUri)
 	assert.NoError(t, err)
 
-	coreOS, err := repo.GetReleaseData("2135.5.0", releases)
+	coreOS, err := repo.GetReleaseData("2135.4.0", releases)
 	assert.NoError(t, err)
 
 	d, _ := json.Marshal(coreOS)
@@ -106,13 +106,6 @@ func TestReleaseRepositoryRetries(t *testing.T) {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
 
-	httpmock.RegisterResponder("GET", releasesUri,
-		func(req *http.Request) (*http.Response, error) {
-			resp := httpmock.NewStringResponse(200, coreosReleaseHTTPResponse)
-			return resp, nil
-		},
-	)
-
 	httpmock.RegisterResponder("GET", "http://cve.circl.lu/api/cve/CVE-2016-9962",
 		func(req *http.Request) (*http.Response, error) {
 			resp := httpmock.NewStringResponse(200, "{}")
@@ -120,20 +113,19 @@ func TestReleaseRepositoryRetries(t *testing.T) {
 		},
 	)
 
-	//failForAttempts := 10
-	//attempt := 0
+	failForAttempts := 6
+	attempt := 0
 
-	// httpmock.RegisterResponder("GET", "http://stable.release.core-os.net/amd64-usr/current/version.txt",
-	// 	func(req *http.Request) (*http.Response, error) {
-	// 		attempt++
-	// 		if attempt <= failForAttempts {
-	// 			return nil, errors.New("random error")
-	// 		}
-	// 		body := "COREOS_VERSION=1284.2.0"
-	// 		resp := httpmock.NewStringResponse(200, body)
-	// 		return resp, nil
-	// 	},
-	//)
+	httpmock.RegisterResponder("GET", releasesUri,
+		func(req *http.Request) (*http.Response, error) {
+			attempt++
+			if attempt <= failForAttempts {
+				return nil, errors.New("random error")
+			}
+			resp := httpmock.NewStringResponse(200, coreosReleaseHTTPResponse)
+			return resp, nil
+		},
+	)
 
 	repo := newReleaseRepository(
 		&http.Client{},
@@ -146,13 +138,13 @@ func TestReleaseRepositoryRetries(t *testing.T) {
 	assert.Equal(t, expectedChannel, repo.channel)
 
 	err = repo.GetInstalledVersion()
-	assert.NoError(t, err)
-
-	err = repo.GetLatestVersion()
 	assert.Contains(t, err.Error(), "giving up")
 
-	failForAttempts := 3
-	attempt := 0
+	err = repo.GetLatestVersion()
+	assert.NoError(t, err)
+
+	failForAttempts = 3
+	attempt = 0
 
 	err = repo.GetLatestVersion()
 	assert.NoError(t, err)
@@ -180,4 +172,17 @@ func TestReleaseRepository_UpdateError(t *testing.T) {
 	repo.UpdateError(expErr)
 	assert.Error(t, repo.err)
 	assert.Equal(t, expErr, repo.err)
+}
+
+func TestGetLatestReleaseFromJSON(t *testing.T) {
+	versions := map[string]interface{}{
+		"2079.5.1": "",
+		"2079.6.1": "",
+		"522.4.0":  "",
+		"899.17.0": "",
+	}
+
+	expected := "2079.6.1"
+	actual, _ := getLatestReleaseFromJSON(versions)
+	assert.Equal(t, expected, actual)
 }
