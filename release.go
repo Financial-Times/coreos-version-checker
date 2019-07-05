@@ -8,6 +8,7 @@ import (
 	"math"
 	"net/http"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,7 +21,7 @@ var cveRegex = regexp.MustCompile(`CVE\-[0-9]{4}\-[0-9]{4,}`)
 
 const (
 	cveUri      string = "http://cve.circl.lu/api/cve/%s"
-	releasesUri string = "https://coreos.com/releases/releases.json"
+	releasesUri string = "https://coreos.com/releases/releases-stable.json"
 )
 
 type cve struct {
@@ -34,7 +35,7 @@ type coreOSRelease struct {
 	Version       string     `json:"version"`
 	ReleaseNotes  string     `json:"releaseNotes"`
 	MaxCVSS       *float64   `json:"maxCvss,omitempty"`
-	ReleasedOn    *time.Time `json:"releasedOn,omitempty"`
+	ReleaseDate   *time.Time `json:"releaseDate,omitempty"`
 }
 
 type releaseRepository struct {
@@ -72,7 +73,7 @@ func (r *releaseRepository) UpdateError(err error) {
 }
 
 func (r *releaseRepository) GetChannel() error {
-	channel, err := valueFromFile("GROUP=", r.updateConfPath)
+	channel, err := getValueFromFile("GROUP=", r.updateConfPath)
 	if err != nil {
 		return err
 	}
@@ -90,12 +91,17 @@ func (r *releaseRepository) GetChannel() error {
 }
 
 func (r *releaseRepository) GetInstalledVersion() error {
-	release, err := valueFromFile("COREOS_RELEASE_VERSION=", r.releaseConfPath)
+	release, err := getValueFromFile("COREOS_RELEASE_VERSION=", r.releaseConfPath)
 	if err != nil {
 		return err
 	}
 
-	enrichedRelease, err := r.Get(release)
+	releases, err := GetJSON(r.client, releasesUri)
+	if err != nil {
+		return err
+	}
+
+	enrichedRelease, err := r.GetReleaseData(release, releases)
 	if err != nil {
 		return err
 	}
@@ -108,31 +114,17 @@ func (r *releaseRepository) GetInstalledVersion() error {
 }
 
 func (r *releaseRepository) GetLatestVersion() error {
-	uri := fmt.Sprintf(versionUri, r.channel)
-	req, err := retryablehttp.NewRequest("GET", uri, nil)
-	if err != nil {
-		return err
-	}
-	resp, err := r.client.Do(req)
+	releases, err := GetJSON(r.client, releasesUri)
 	if err != nil {
 		return err
 	}
 
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("Got %v requesting %v", resp.StatusCode, uri)
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
+	release, err := getLatestReleaseFromJSON(releases)
 	if err != nil {
 		return err
 	}
 
-	release, err := parseCoreOSVersion(string(body))
-	if err != nil {
-		return err
-	}
-
-	coreOS, err := r.Get(release)
+	coreOS, err := r.GetReleaseData(release, releases)
 	if err != nil {
 		return err
 	}
@@ -144,22 +136,7 @@ func (r *releaseRepository) GetLatestVersion() error {
 	return nil
 }
 
-func parseCoreOSVersion(body string) (string, error) {
-	lines := strings.Split(body, "\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "COREOS_VERSION=") {
-			return strings.TrimPrefix(line, "COREOS_VERSION="), nil
-		}
-	}
-
-	return "", errors.New("No CoreOS version on the page")
-}
-
-func (r *releaseRepository) Get(release string) (*coreOSRelease, error) {
-	releases, err := GetJSON(r.client, releasesUri)
-	if err != nil {
-		return nil, err
-	}
+func (r *releaseRepository) GetReleaseData(release string, releases map[string]interface{}) (*coreOSRelease, error) {
 
 	releaseData, ok := releases[release].(map[string]interface{})
 	if !ok {
@@ -169,11 +146,11 @@ func (r *releaseRepository) Get(release string) (*coreOSRelease, error) {
 	releaseNotes := releaseData["release_notes"].(string)
 	releasedOnText, ok := releaseData["release_date"]
 
-	var releasedOn *time.Time
+	var releaseDate *time.Time
 	if ok {
 		parsed, err := time.Parse("2006-01-02 15:04:05 -0700", releasedOnText.(string))
 		if err == nil {
-			releasedOn = &parsed
+			releaseDate = &parsed
 		}
 	}
 
@@ -186,8 +163,63 @@ func (r *releaseRepository) Get(release string) (*coreOSRelease, error) {
 		securityFixes = append(securityFixes, fix)
 		maxCVSS = math.Max(maxCVSS, fix.CVSS)
 	}
+	return &coreOSRelease{ReleaseDate: releaseDate, ReleaseNotes: releaseNotes, SecurityFixes: securityFixes, MaxCVSS: &maxCVSS, Version: release}, nil
+}
 
-	return &coreOSRelease{ReleasedOn: releasedOn, ReleaseNotes: releaseNotes, SecurityFixes: securityFixes, MaxCVSS: &maxCVSS, Version: release}, nil
+func getLatestReleaseFromJSON(m map[string]interface{}) (string, error) {
+	versions := make([]string, 0, len(m))
+	for key := range m {
+		versions = append(versions, key)
+	}
+	padded := pad(versions)
+	sort.Strings(padded)
+
+	if len(padded) > 0 {
+		p := padded[len(padded)-1]
+		version := cutPadded(p)
+		return version, nil
+	}
+	return "", errors.New("Version is empty")
+}
+
+func pad(versions []string) []string {
+	paddedStrings := make([]string, 0, len(versions))
+	for k := range versions {
+		var builder strings.Builder
+		splitVersions := strings.Split(versions[k], ".")
+		for s := range splitVersions {
+			padded := leftPad(splitVersions[s], "*", 5)
+			if splitVersions[s] != splitVersions[len(splitVersions)-1] {
+				builder.WriteString(padded + ".")
+			} else {
+				builder.WriteString(padded)
+			}
+		}
+		paddedStrings = append(paddedStrings, builder.String())
+	}
+	return paddedStrings
+}
+
+func leftPad(s string, padStr string, totalLen int) string {
+	padCount := 1 + ((totalLen - len(padStr)) / len(padStr))
+	res := strings.Repeat(padStr, padCount) + s
+	return res[(len(res) - totalLen):]
+}
+
+func cutPadded(padded string) string {
+	var builder strings.Builder
+	paddedStrings := strings.Split(padded, ".")
+	for k := range paddedStrings {
+		temp := paddedStrings[k]
+		in := strings.LastIndex(temp, "*")
+		temp = temp[(in + 1):] //cut special symbols
+		if paddedStrings[k] != paddedStrings[len(paddedStrings)-1] {
+			builder.WriteString(temp + ".")
+		} else {
+			builder.WriteString(temp)
+		}
+	}
+	return builder.String()
 }
 
 func parseReleaseNotes(notes string) []string {
