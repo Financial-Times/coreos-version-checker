@@ -156,8 +156,8 @@ func checkHighSecurityScore(repo *releaseRepository) func() (string, error) {
 		if err != nil &&
 			repo.latestVersion.MaxCVSS != nil &&
 			*repo.latestVersion.MaxCVSS >= 7 &&
-			repo.latestVersion.ReleasedOn != nil &&
-			time.Now().After(repo.latestVersion.ReleasedOn.Add(time.Hour*336)) { // 336 hours = 2 weeks
+			repo.latestVersion.ReleaseDate != nil &&
+			time.Now().After(repo.latestVersion.ReleaseDate.Add(time.Hour*336)) { // 336 hours = 2 weeks
 
 			return "", errors.New("The new version has a HIGH LEVEL security fix that is over TWO WEEKS old! CoreOS must be upgraded.")
 		}

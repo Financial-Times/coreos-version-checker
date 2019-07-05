@@ -14,38 +14,28 @@ import (
 
 var (
 	coreosReleaseHTTPResponse = `
-	{"1284.2.0": {
-		"security_fixes": [{"id": "CVE-2016-9962", "cvss": 4.4}],
-		"version": "1284.2.0",
-		"release_notes": "Security Fixes:\n\n  - Fix RunC privilege escalation ([CVE-2016-9962](http:\/\/cve.mitre.org\/cgi-bin\/cvename.cgi?name=CVE-2016-9962))\n",
-		"max_cvss": 4.4,
-		"released_on": "2017-01-11T01:55:33Z"
-	}}
-	`
-	coreosReleaseResponse = `{"securityFixes":[{"id":"CVE-2016-9962","cvss":4.4}],"version":"1284.2.0","releaseNotes":"Security Fixes:\n\n  - Fix RunC privilege escalation ([CVE-2016-9962](http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2016-9962))\n","maxCvss":4.4,"releasedOn":"2017-01-11T01:55:33Z"}`
-	releaseConf           = `COREOS_RELEASE_VERSION=1284.2.0
+	{"2135.5.0": {
+		"version": "2135.5.0",
+		"release_notes": "Bug fixes:\n\n * Fix Ignition panic when no guestinfo.(coreos|ignition).config parameters are specified on VMware (coreos/ignition#821)\n\nUpdates:\n\n * Ignition [0.33.0](https://github.com/coreos/ignition/releases/tag/v0.33.0)\n",
+		"max_cvss":-1,
+		"released_on": "2019-07-02T20:52:42Z"
+	}}`
+	coreosReleaseResponse = `{"version":"2135.5.0","release_notes": "Bug fixes:\n\n * Fix Ignition panic when no guestinfo.(coreos|ignition).config parameters are specified on VMware (coreos/ignition#821)\n\nUpdates:\n\n * Ignition [0.33.0](https://github.com/coreos/ignition/releases/tag/v0.33.0)\n","max_cvss": -1,"released_on": "2019-07-02T20:52:42Z"}`
+	releaseConf           = `COREOS_RELEASE_VERSION=2135.5.0
 COREOS_RELEASE_BOARD=amd64-usr
 COREOS_RELEASE_APPID={e96281a6-d1af-4bde-9a0a-97b76e56dc57}`
 )
 
 func TestCoreOS(t *testing.T) {
 	repo := newReleaseRepository(&http.Client{}, "/release/conf", "/update/conf")
-	coreOS, err := repo.Get("1284.2.0")
+	releases, err := GetJSON(repo.client, releasesUri)
+	assert.NoError(t, err)
+
+	coreOS, err := repo.GetReleaseData("2135.5.0", releases)
 	assert.NoError(t, err)
 
 	d, _ := json.Marshal(coreOS)
 	assert.Equal(t, coreosReleaseResponse, string(d))
-}
-
-func TestCoreOSVersionParsing(t *testing.T) {
-	body := `GROUP=stable
-COREOS_VERSION=1284.2.0
-REBOOT_STRATEGY=off`
-
-	version, err := parseCoreOSVersion(body)
-
-	assert.NoError(t, err)
-	assert.Equal(t, "1284.2.0", version)
 }
 
 func TestReleaseRepository(t *testing.T) {
@@ -116,7 +106,7 @@ func TestReleaseRepositoryRetries(t *testing.T) {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
 
-	httpmock.RegisterResponder("GET", "https://coreos.com/releases/releases.json",
+	httpmock.RegisterResponder("GET", releasesUri,
 		func(req *http.Request) (*http.Response, error) {
 			resp := httpmock.NewStringResponse(200, coreosReleaseHTTPResponse)
 			return resp, nil
@@ -130,20 +120,20 @@ func TestReleaseRepositoryRetries(t *testing.T) {
 		},
 	)
 
-	failForAttempts := 10
-	attempt := 0
+	//failForAttempts := 10
+	//attempt := 0
 
-	httpmock.RegisterResponder("GET", "http://stable.release.core-os.net/amd64-usr/current/version.txt",
-		func(req *http.Request) (*http.Response, error) {
-			attempt++
-			if attempt <= failForAttempts {
-				return nil, errors.New("random error")
-			}
-			body := "COREOS_VERSION=1284.2.0"
-			resp := httpmock.NewStringResponse(200, body)
-			return resp, nil
-		},
-	)
+	// httpmock.RegisterResponder("GET", "http://stable.release.core-os.net/amd64-usr/current/version.txt",
+	// 	func(req *http.Request) (*http.Response, error) {
+	// 		attempt++
+	// 		if attempt <= failForAttempts {
+	// 			return nil, errors.New("random error")
+	// 		}
+	// 		body := "COREOS_VERSION=1284.2.0"
+	// 		resp := httpmock.NewStringResponse(200, body)
+	// 		return resp, nil
+	// 	},
+	//)
 
 	repo := newReleaseRepository(
 		&http.Client{},
@@ -161,8 +151,8 @@ func TestReleaseRepositoryRetries(t *testing.T) {
 	err = repo.GetLatestVersion()
 	assert.Contains(t, err.Error(), "giving up")
 
-	failForAttempts = 3
-	attempt = 0
+	failForAttempts := 3
+	attempt := 0
 
 	err = repo.GetLatestVersion()
 	assert.NoError(t, err)
@@ -173,8 +163,10 @@ func TestReleaseRepositoryRetries(t *testing.T) {
 func TestNoReleaseForVersion(t *testing.T) {
 	repo := newReleaseRepository(&http.Client{}, "/release/conf", "/update/conf")
 	assert.NoError(t, repo.err)
+	releases, err := GetJSON(repo.client, releasesUri)
+	assert.NoError(t, repo.err)
 
-	os, err := repo.Get("1.1.1")
+	os, err := repo.GetReleaseData("1.1.1", releases)
 	assert.EqualError(t, err, "Release not found")
 	assert.Nil(t, os)
 }
