@@ -95,6 +95,7 @@ func (r *releaseRepository) GetInstalledVersion() error {
 	if err != nil {
 		return err
 	}
+	log.Printf("GetInstalledVersion(): currently installed version is %v", release)
 
 	releases, err := GetJSON(r.client, releasesUri)
 	if err != nil {
