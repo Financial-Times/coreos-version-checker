@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -28,7 +29,7 @@ COREOS_RELEASE_APPID={e96281a6-d1af-4bde-9a0a-97b76e56dc57}`
 
 func TestCoreOS(t *testing.T) {
 	repo := newReleaseRepository(&http.Client{}, "/release/conf", "/update/conf")
-	releases, err := GetJSON(repo.client, releasesUri)
+	releases, err := GetJSON(repo.client, stableReleasesURI)
 	assert.NoError(t, err)
 
 	coreOS, err := repo.GetReleaseData("2135.4.0", releases)
@@ -113,10 +114,10 @@ func TestReleaseRepositoryRetries(t *testing.T) {
 		},
 	)
 
-	failForAttempts := 6
+	failForAttempts := 6 // maxRetries is 5
 	attempt := 0
 
-	httpmock.RegisterResponder("GET", releasesUri,
+	httpmock.RegisterResponder("GET", stableReleasesURI,
 		func(req *http.Request) (*http.Response, error) {
 			attempt++
 			if attempt <= failForAttempts {
@@ -137,11 +138,8 @@ func TestReleaseRepositoryRetries(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expectedChannel, repo.channel)
 
-	err = repo.GetInstalledVersion()
-	assert.Contains(t, err.Error(), "giving up")
-
 	err = repo.GetLatestVersion()
-	assert.NoError(t, err)
+	assert.Contains(t, err.Error(), "giving up")
 
 	failForAttempts = 3
 	attempt = 0
@@ -155,7 +153,7 @@ func TestReleaseRepositoryRetries(t *testing.T) {
 func TestNoReleaseForVersion(t *testing.T) {
 	repo := newReleaseRepository(&http.Client{}, "/release/conf", "/update/conf")
 	assert.NoError(t, repo.err)
-	releases, err := GetJSON(repo.client, releasesUri)
+	releases, err := GetJSON(repo.client, stableReleasesURI)
 	assert.NoError(t, repo.err)
 
 	os, err := repo.GetReleaseData("1.1.1", releases)
@@ -175,7 +173,7 @@ func TestReleaseRepository_UpdateError(t *testing.T) {
 }
 
 func TestGetLatestReleaseFromJSON(t *testing.T) {
-	versions := map[string]interface{}{
+	releases := map[string]interface{}{
 		"2079.5.1": "",
 		"2079.6.1": "",
 		"522.4.0":  "",
@@ -183,6 +181,45 @@ func TestGetLatestReleaseFromJSON(t *testing.T) {
 	}
 
 	expected := "2079.6.1"
-	actual, _ := getLatestReleaseFromJSON(versions)
+	actual, _ := getLatestReleaseFromJSON(releases)
 	assert.Equal(t, expected, actual)
+}
+
+func TestLeftPad(t *testing.T) {
+	s := "test"
+	expected := "******test"
+	actual := leftPad(s, "*", 10)
+	assert.Equal(t, expected, actual)
+}
+
+func TestPadReleases(t *testing.T) {
+	releases := []string{"2079.5.1", "2079.6.1", "522.4.0"}
+	expected := []string{"*2079.****5.****1", "*2079.****6.****1", "**522.****4.****0"}
+	actual := padReleases(releases)
+	assert.Equal(t, expected, actual)
+}
+
+func TestCutPaddedRelease(t *testing.T) {
+	release := "*2079.****5.****1"
+	expected := "2079.5.1"
+	actual := cutPaddedRelease(release)
+	assert.Equal(t, expected, actual)
+}
+
+func ExampleLeftPad() {
+	s := "test"
+	fmt.Println(leftPad(s, "*", 10))
+	//Output: ******test
+}
+
+func ExamplePadReleases() {
+	releases := []string{"2079.5.1", "2079.6.1", "522.4.0"}
+	fmt.Println(padReleases(releases))
+	//Output: [*2079.****5.****1 *2079.****6.****1 **522.****4.****0]
+}
+
+func ExampleCutPaddedRelease() {
+	release := "*2079.****5.****1"
+	fmt.Println(cutPaddedRelease(release))
+	//Output: 2079.5.1
 }

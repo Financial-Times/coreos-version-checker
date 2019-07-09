@@ -20,9 +20,9 @@ import (
 var cveRegex = regexp.MustCompile(`CVE\-[0-9]{4}\-[0-9]{4,}`)
 
 const (
-	cveUri            string = "http://cve.circl.lu/api/cve/%s"
-	releasesUri       string = "https://coreos.com/releases/releases.json"
-	stableReleasesUri string = "https://coreos.com/releases/releases-stable.json"
+	cveURI            string = "http://cve.circl.lu/api/cve/%s"
+	betaReleasesURI   string = "https://coreos.com/releases/releases.json"
+	stableReleasesURI string = "https://coreos.com/releases/releases-stable.json"
 )
 
 type cve struct {
@@ -98,7 +98,7 @@ func (r *releaseRepository) GetInstalledVersion() error {
 	}
 	log.Printf("Currently installed version is %v", release)
 
-	releases, err := GetJSON(r.client, releasesUri)
+	releases, err := GetJSON(r.client, betaReleasesURI)
 	if err != nil {
 		return err
 	}
@@ -116,7 +116,7 @@ func (r *releaseRepository) GetInstalledVersion() error {
 }
 
 func (r *releaseRepository) GetLatestVersion() error {
-	releases, err := GetJSON(r.client, stableReleasesUri)
+	releases, err := GetJSON(r.client, stableReleasesURI)
 	if err != nil {
 		return err
 	}
@@ -173,22 +173,22 @@ func getLatestReleaseFromJSON(m map[string]interface{}) (string, error) {
 	for key := range m {
 		versions = append(versions, key)
 	}
-	padded := pad(versions)
+	padded := padReleases(versions)
 	sort.Strings(padded)
 
 	if len(padded) > 0 {
 		p := padded[len(padded)-1]
-		version := cutPadded(p)
+		version := cutPaddedRelease(p)
 		return version, nil
 	}
 	return "", errors.New("Version is empty")
 }
 
-func pad(versions []string) []string {
-	paddedStrings := make([]string, 0, len(versions))
-	for k := range versions {
+func padReleases(releases []string) []string {
+	paddedStrings := make([]string, 0, len(releases))
+	for k := range releases {
 		var builder strings.Builder
-		splitVersions := strings.Split(versions[k], ".")
+		splitVersions := strings.Split(releases[k], ".")
 		for s := range splitVersions {
 			padded := leftPad(splitVersions[s], "*", 5)
 			if splitVersions[s] != splitVersions[len(splitVersions)-1] {
@@ -208,7 +208,7 @@ func leftPad(s string, padStr string, totalLen int) string {
 	return res[(len(res) - totalLen):]
 }
 
-func cutPadded(padded string) string {
+func cutPaddedRelease(padded string) string {
 	var builder strings.Builder
 	paddedStrings := strings.Split(padded, ".")
 	for k := range paddedStrings {
@@ -243,7 +243,7 @@ func parseReleaseNotes(notes string) []string {
 }
 
 func (r *releaseRepository) retrieveCVE(id string) cve {
-	cveResult, err := GetJSON(r.client, fmt.Sprintf(cveUri, id))
+	cveResult, err := GetJSON(r.client, fmt.Sprintf(cveURI, id))
 	if err != nil {
 		return cve{err: err, ID: id}
 	}
@@ -259,6 +259,5 @@ func (r *releaseRepository) retrieveCVE(id string) cve {
 			ID:  id,
 		}
 	}
-
 	return cve{CVSS: cvss, ID: id, err: nil}
 }
