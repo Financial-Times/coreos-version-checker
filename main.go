@@ -8,16 +8,12 @@ import (
 	status "github.com/Financial-Times/service-status-go/httphandlers"
 	log "github.com/Sirupsen/logrus"
 	"github.com/gorilla/mux"
-	"github.com/jawher/mow.cli"
+	cli "github.com/jawher/mow.cli"
 )
 
 var (
 	coreOSUpdateConfPath  *string
 	coreOSReleaseConfPath *string
-)
-
-const (
-	versionUri = "http://%s.release.core-os.net/amd64-usr/current/version.txt"
 )
 
 func main() {
@@ -74,19 +70,19 @@ func startPoll(interval time.Duration, repo *releaseRepository) {
 func pollCoreOSReleases(repo *releaseRepository) error {
 	err := repo.GetChannel()
 	if err != nil {
-		log.WithError(err).Error("Failed to retrieve the channel from CoreOS update.conf!")
+		log.WithError(err).Error("Failed to retrieve the channel from CoreOS update.conf.")
 		return err
 	}
 
 	err = repo.GetInstalledVersion()
 	if err != nil {
-		log.WithError(err).Error("Failed to retrieve the currently installed version!")
+		log.WithError(err).Error("Failed to retrieve the currently installed version.")
 		return err
 	}
 
 	err = repo.GetLatestVersion()
 	if err != nil {
-		log.WithError(err).Error("Failed to retrieve the latest remote coreOS Release!")
+		log.WithError(err).Error("Failed to retrieve the latest remote coreOS Release.")
 		return err
 	}
 

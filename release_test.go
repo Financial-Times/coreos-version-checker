@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -14,38 +15,28 @@ import (
 
 var (
 	coreosReleaseHTTPResponse = `
-	{"1284.2.0": {
-		"security_fixes": [{"id": "CVE-2016-9962", "cvss": 4.4}],
-		"version": "1284.2.0",
-		"release_notes": "Security Fixes:\n\n  - Fix RunC privilege escalation ([CVE-2016-9962](http:\/\/cve.mitre.org\/cgi-bin\/cvename.cgi?name=CVE-2016-9962))\n",
-		"max_cvss": 4.4,
-		"released_on": "2017-01-11T01:55:33Z"
-	}}
-	`
-	coreosReleaseResponse = `{"securityFixes":[{"id":"CVE-2016-9962","cvss":4.4}],"version":"1284.2.0","releaseNotes":"Security Fixes:\n\n  - Fix RunC privilege escalation ([CVE-2016-9962](http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2016-9962))\n","maxCvss":4.4,"releasedOn":"2017-01-11T01:55:33Z"}`
-	releaseConf           = `COREOS_RELEASE_VERSION=1284.2.0
+	{"2135.4.0": {
+		"version": "2135.4.0",
+		"release_notes": "No changes for stable promotion\n",
+		"max_cvss": -1,
+		"released_on": "2019-06-25T20:35:59Z"
+	}}`
+	coreosReleaseResponse = `{"version":"2135.4.0","releaseNotes":"No changes for stable promotion\n","maxCvss":-1,"releaseDate":"2019-06-25T20:35:59Z"}`
+	releaseConf           = `COREOS_RELEASE_VERSION=2135.4.0
 COREOS_RELEASE_BOARD=amd64-usr
 COREOS_RELEASE_APPID={e96281a6-d1af-4bde-9a0a-97b76e56dc57}`
 )
 
 func TestCoreOS(t *testing.T) {
 	repo := newReleaseRepository(&http.Client{}, "/release/conf", "/update/conf")
-	coreOS, err := repo.Get("1284.2.0")
+	releases, err := GetJSON(repo.client, stableReleasesURI)
+	assert.NoError(t, err)
+
+	coreOS, err := repo.GetReleaseData("2135.4.0", releases)
 	assert.NoError(t, err)
 
 	d, _ := json.Marshal(coreOS)
 	assert.Equal(t, coreosReleaseResponse, string(d))
-}
-
-func TestCoreOSVersionParsing(t *testing.T) {
-	body := `GROUP=stable
-COREOS_VERSION=1284.2.0
-REBOOT_STRATEGY=off`
-
-	version, err := parseCoreOSVersion(body)
-
-	assert.NoError(t, err)
-	assert.Equal(t, "1284.2.0", version)
 }
 
 func TestReleaseRepository(t *testing.T) {
@@ -116,13 +107,6 @@ func TestReleaseRepositoryRetries(t *testing.T) {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
 
-	httpmock.RegisterResponder("GET", "https://coreos.com/releases/releases.json",
-		func(req *http.Request) (*http.Response, error) {
-			resp := httpmock.NewStringResponse(200, coreosReleaseHTTPResponse)
-			return resp, nil
-		},
-	)
-
 	httpmock.RegisterResponder("GET", "http://cve.circl.lu/api/cve/CVE-2016-9962",
 		func(req *http.Request) (*http.Response, error) {
 			resp := httpmock.NewStringResponse(200, "{}")
@@ -130,17 +114,16 @@ func TestReleaseRepositoryRetries(t *testing.T) {
 		},
 	)
 
-	failForAttempts := 10
+	failForAttempts := 6 // maxRetries is 5
 	attempt := 0
 
-	httpmock.RegisterResponder("GET", "http://stable.release.core-os.net/amd64-usr/current/version.txt",
+	httpmock.RegisterResponder("GET", stableReleasesURI,
 		func(req *http.Request) (*http.Response, error) {
 			attempt++
 			if attempt <= failForAttempts {
 				return nil, errors.New("random error")
 			}
-			body := "COREOS_VERSION=1284.2.0"
-			resp := httpmock.NewStringResponse(200, body)
+			resp := httpmock.NewStringResponse(200, coreosReleaseHTTPResponse)
 			return resp, nil
 		},
 	)
@@ -154,9 +137,6 @@ func TestReleaseRepositoryRetries(t *testing.T) {
 	err := repo.GetChannel()
 	assert.NoError(t, err)
 	assert.Equal(t, expectedChannel, repo.channel)
-
-	err = repo.GetInstalledVersion()
-	assert.NoError(t, err)
 
 	err = repo.GetLatestVersion()
 	assert.Contains(t, err.Error(), "giving up")
@@ -173,8 +153,10 @@ func TestReleaseRepositoryRetries(t *testing.T) {
 func TestNoReleaseForVersion(t *testing.T) {
 	repo := newReleaseRepository(&http.Client{}, "/release/conf", "/update/conf")
 	assert.NoError(t, repo.err)
+	releases, err := GetJSON(repo.client, stableReleasesURI)
+	assert.NoError(t, repo.err)
 
-	os, err := repo.Get("1.1.1")
+	os, err := repo.GetReleaseData("1.1.1", releases)
 	assert.EqualError(t, err, "Release not found")
 	assert.Nil(t, os)
 }
@@ -188,4 +170,56 @@ func TestReleaseRepository_UpdateError(t *testing.T) {
 	repo.UpdateError(expErr)
 	assert.Error(t, repo.err)
 	assert.Equal(t, expErr, repo.err)
+}
+
+func TestGetLatestReleaseFromJSON(t *testing.T) {
+	releases := map[string]interface{}{
+		"2079.5.1": "",
+		"2079.6.1": "",
+		"522.4.0":  "",
+		"899.17.0": "",
+	}
+
+	expected := "2079.6.1"
+	actual, _ := getLatestReleaseFromJSON(releases)
+	assert.Equal(t, expected, actual)
+}
+
+func TestLeftPad(t *testing.T) {
+	s := "test"
+	expected := "******test"
+	actual := leftPad(s, "*", 10)
+	assert.Equal(t, expected, actual)
+}
+
+func TestPadReleases(t *testing.T) {
+	releases := []string{"2079.5.1", "2079.6.1", "522.4.0"}
+	expected := []string{"*2079.****5.****1", "*2079.****6.****1", "**522.****4.****0"}
+	actual := padReleases(releases)
+	assert.Equal(t, expected, actual)
+}
+
+func TestCutPaddedRelease(t *testing.T) {
+	release := "*2079.****5.****1"
+	expected := "2079.5.1"
+	actual := cutPaddedRelease(release)
+	assert.Equal(t, expected, actual)
+}
+
+func ExampleLeftPad() {
+	s := "test"
+	fmt.Println(leftPad(s, "*", 10))
+	//Output: ******test
+}
+
+func ExamplePadReleases() {
+	releases := []string{"2079.5.1", "2079.6.1", "522.4.0"}
+	fmt.Println(padReleases(releases))
+	//Output: [*2079.****5.****1 *2079.****6.****1 **522.****4.****0]
+}
+
+func ExampleCutPaddedRelease() {
+	release := "*2079.****5.****1"
+	fmt.Println(cutPaddedRelease(release))
+	//Output: 2079.5.1
 }

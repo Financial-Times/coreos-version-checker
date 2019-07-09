@@ -1,9 +1,9 @@
-FROM golang:1.8-alpine
+FROM golang:1.12-alpine
 
 ENV PROJECT=coreos-version-checker
 COPY . /${PROJECT}-sources/
 
-RUN apk --no-cache --virtual .build-dependencies add git \
+RUN apk --no-cache --virtual .build-dependencies add git curl \
   && ORG_PATH="github.com/Financial-Times" \
   && REPO_PATH="${ORG_PATH}/${PROJECT}" \
   && mkdir -p $GOPATH/src/${ORG_PATH} \
@@ -11,9 +11,8 @@ RUN apk --no-cache --virtual .build-dependencies add git \
   && ln -s /${PROJECT}-sources $GOPATH/src/${REPO_PATH} \
   && cd $GOPATH/src/${REPO_PATH} \
   && echo "Fetching dependencies..." \
-  && go get -u github.com/kardianos/govendor \
-  && $GOPATH/bin/govendor sync \
-  && go get -v \
+  && curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh \
+  && $GOPATH/bin/dep ensure -vendor-only \
   && go build  \
   && mv ${PROJECT} /${PROJECT} \
   && apk del .build-dependencies \
