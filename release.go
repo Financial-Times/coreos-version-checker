@@ -20,9 +20,8 @@ import (
 var cveRegex = regexp.MustCompile(`CVE\-[0-9]{4}\-[0-9]{4,}`)
 
 const (
-	cveURI            string = "http://cve.circl.lu/api/cve/%s"
-	betaReleasesURI   string = "https://coreos.com/releases/releases.json"
-	stableReleasesURI string = "https://coreos.com/releases/releases-stable.json"
+	cveURI      string = "http://cve.circl.lu/api/cve/%s"
+	releasesURI string = "https://coreos.com/releases/releases.json"
 )
 
 type cve struct {
@@ -98,7 +97,7 @@ func (r *releaseRepository) GetInstalledVersion() error {
 	}
 	log.Printf("Currently installed version is %v", release)
 
-	releases, err := GetJSON(r.client, betaReleasesURI)
+	releases, err := GetJSON(r.client, releasesURI)
 	if err != nil {
 		return err
 	}
@@ -116,7 +115,9 @@ func (r *releaseRepository) GetInstalledVersion() error {
 }
 
 func (r *releaseRepository) GetLatestVersion() error {
-	releases, err := GetJSON(r.client, stableReleasesURI)
+	uri := fmt.Sprintf("https://coreos.com/releases/releases-%s.json", r.channel)
+
+	releases, err := GetJSON(r.client, uri)
 	if err != nil {
 		return err
 	}
