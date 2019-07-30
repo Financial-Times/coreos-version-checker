@@ -27,8 +27,6 @@ COREOS_RELEASE_BOARD=amd64-usr
 COREOS_RELEASE_APPID={e96281a6-d1af-4bde-9a0a-97b76e56dc57}`
 )
 
-var stableReleasesURI string = "https://coreos.com/releases/releases-stable.json"
-
 func TestCoreOS(t *testing.T) {
 	repo := newReleaseRepository(&http.Client{}, "/release/conf", "/update/conf")
 	releases, err := GetJSON(repo.client, stableReleasesURI)
@@ -53,6 +51,10 @@ func TestReleaseRepository(t *testing.T) {
 		{
 			updateConf:      "GROUP=beta\nREBOOT_STRATEGY=off",
 			expectedChannel: "beta",
+		},
+		{
+			updateConf:      "GROUP=alpha\nREBOOT_STRATEGY=off",
+			expectedChannel: "alpha",
 		},
 		{
 			updateConf:      "GROUP=coreUpdateNonStandard1\nREBOOT_STRATEGY=off",
