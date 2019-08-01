@@ -21,8 +21,10 @@ var cveRegex = regexp.MustCompile(`CVE\-[0-9]{4}\-[0-9]{4,}`)
 
 const (
 	cveURI            string = "http://cve.circl.lu/api/cve/%s"
-	betaReleasesURI   string = "https://coreos.com/releases/releases.json"
+	betaReleasesURI   string = "https://coreos.com/releases/releases-beta.json"
+	alphaReleasesURI  string = "https://coreos.com/releases/releases-alpha.json"
 	stableReleasesURI string = "https://coreos.com/releases/releases-stable.json"
+	allReleasesURI    string = "https://coreos.com/releases/releases.json"
 )
 
 type cve struct {
@@ -98,7 +100,7 @@ func (r *releaseRepository) GetInstalledVersion() error {
 	}
 	log.Printf("Currently installed version is %v", release)
 
-	releases, err := GetJSON(r.client, betaReleasesURI)
+	releases, err := GetJSON(r.client, allReleasesURI)
 	if err != nil {
 		return err
 	}
@@ -116,17 +118,29 @@ func (r *releaseRepository) GetInstalledVersion() error {
 }
 
 func (r *releaseRepository) GetLatestVersion() error {
-	releases, err := GetJSON(r.client, stableReleasesURI)
+	var uri string
+	switch r.channel {
+	case "alpha":
+		uri = alphaReleasesURI
+	case "beta":
+		uri = betaReleasesURI
+	case "stable":
+		uri = stableReleasesURI
+	default:
+		return errors.New("Unknown channel")
+	}
+
+	releases, err := GetJSON(r.client, uri)
 	if err != nil {
 		return err
 	}
 
-	release, err := getLatestReleaseFromJSON(releases)
+	latestRelease, err := getLatestReleaseFromJSON(releases)
 	if err != nil {
 		return err
 	}
 
-	coreOS, err := r.GetReleaseData(release, releases)
+	coreOS, err := r.GetReleaseData(latestRelease, releases)
 	if err != nil {
 		return err
 	}
@@ -191,10 +205,9 @@ func padReleases(releases []string) []string {
 		splitVersions := strings.Split(releases[k], ".")
 		for s := range splitVersions {
 			padded := leftPad(splitVersions[s], "*", 5)
-			if splitVersions[s] != splitVersions[len(splitVersions)-1] {
-				builder.WriteString(padded + ".")
-			} else {
-				builder.WriteString(padded)
+			builder.WriteString(padded)
+			if s != len(splitVersions)-1 {
+				builder.WriteString(".")
 			}
 		}
 		paddedStrings = append(paddedStrings, builder.String())
@@ -215,10 +228,9 @@ func cutPaddedRelease(padded string) string {
 		temp := paddedStrings[k]
 		in := strings.LastIndex(temp, "*")
 		temp = temp[(in + 1):] //cut special symbols
-		if paddedStrings[k] != paddedStrings[len(paddedStrings)-1] {
-			builder.WriteString(temp + ".")
-		} else {
-			builder.WriteString(temp)
+		builder.WriteString(temp)
+		if k != len(paddedStrings)-1 {
+			builder.WriteString(".")
 		}
 	}
 	return builder.String()
