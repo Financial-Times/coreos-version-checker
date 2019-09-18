@@ -1,4 +1,4 @@
-FROM golang:1.12-alpine
+FROM golang:1
 
 ENV PROJECT=coreos-version-checker
 COPY . /${PROJECT}-sources/
